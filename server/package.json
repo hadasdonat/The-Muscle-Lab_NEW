@@ -8,6 +8,7 @@
     "start": "node server.js",
     "test": "node --test",
     "db:setup": "node scripts/setup-db.js",
+    "db:demo": "node scripts/seed-demo.js",
     "dev:admin": "node scripts/create-dev-admin.js"
   },
   "keywords": [],
