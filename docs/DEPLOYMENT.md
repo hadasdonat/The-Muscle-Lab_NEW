@@ -39,6 +39,8 @@ Both use `DEMO_PASSWORD`. Anyone with the link can sign in with them, so they on
 
 Demo classes are dated relative to the day you run `db:demo`. Re-run it on a fresh database (new `DB_NAME`) when the schedule gets old.
 
+**Without a terminal:** create an empty database (for example `CREATE DATABASE muscle_lab;` in the provider's SQL console), set `DEMO_PASSWORD` on the API service, and use the start command `npm run start:hosted`. On its first start the API creates the tables, roles, plans and demo data; on later starts it sees the tables and skips this step.
+
 ## 3. Get an AI key (optional)
 
 Create a Gemini API key in [Google AI Studio](https://aistudio.google.com/apikey). Keep it out of the repository and out of chat messages; it only goes into the API service's settings on Render. Without a key, the coach uses its rule-based ranking and labels itself "Based on your history".
