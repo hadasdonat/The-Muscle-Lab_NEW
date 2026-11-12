@@ -11,7 +11,7 @@ npm run lint --prefix client
 npm run build --prefix client
 ```
 
-The server command runs ten security/hardening tests; the HTTP integration suite is skipped unless explicitly enabled. Seven client tests cover session storage, malformed stored data, authentication errors, image URLs, and local coaching.
+The server command runs 26 tests without a database: ten security/hardening tests and 16 unit tests for the AI Coach (ranking, prompt contents, reply validation, the Gemini, OpenAI-compatible, and Anthropic request formats, fallback and caching), attendance input validation, and database TLS/time-zone settings. The HTTP integration suite is skipped unless explicitly enabled. Eight client tests cover session storage, malformed stored data, authentication errors, image URLs, the coach API call, and date formatting.
 
 ## HTTP integration tests
 
@@ -24,7 +24,7 @@ RUN_DB_TESTS=1 DB_NAME=muscle_lab_test_local JWT_SECRET=integration-test-only-ke
 
 The setup command refuses an existing database. If `muscle_lab_test_local` already exists, choose another new name. The suite can run again against the initialized test database: fixture accounts have unique emails. It starts its own HTTP listener on a random loopback port and closes the listener and pool afterward. It leaves test records and test-upload files in place, so do not point it at user data.
 
-The 19 integration tests cover public plans, registration/login failures, authentication and roles, profile edits and uploads, password changes, membership lifecycle/expiry, calendar queries, registration/cancellation, capacity and membership concurrency, class validation, dashboard queries, and Admin CRUD. Together with ten security/hardening tests, this is **29 backend tests**.
+The 21 integration tests cover public plans, registration/login failures, authentication and roles, profile edits and uploads, password changes, membership lifecycle/expiry, calendar queries, registration/cancellation, capacity and membership concurrency, class validation, dashboard queries, Admin CRUD, the coach endpoint and its role checks, and attendance (trainer ownership, classes that haven't started, invalid registrations, and updating an existing record). With the 26 tests above, this is **47 backend tests**.
 
 ## Browser workflows
 
@@ -53,11 +53,11 @@ The suite skips if the two URLs are missing. The Admin scenario additionally ski
 Four scenarios check:
 
 1. Protected redirects, invalid login feedback, public pages, and mobile navigation.
-2. Member registration/login, shared profile, local Coach, membership enrollment/cancellation, class registration/cancellation, calendar navigation, profile editing, mobile width, and logout.
-3. Admin login, dashboard and list views, trainer/class create-edit-delete forms using named selectors, immutable linked-user editing, role redirects, and logout.
+2. Member registration/login, shared profile, AI Coach card, membership enrollment/cancellation, class registration/cancellation, calendar navigation, profile editing, mobile width, and logout.
+3. Admin login, dashboard metrics and list views, the attendance page, trainer/class create-edit-delete forms using named selectors, immutable linked-user editing, role redirects, and logout.
 4. Admin lookup failures, retry recovery, and an empty trainer-list state.
 
-API tests additionally verify image uploads, password changes, concurrent requests, plan mutations, and participant lookup. Those operations are not all exercised through the browser. The optional remote coach service, password-reset email, and production deployment are not tested.
+API tests additionally verify image uploads, password changes, concurrent requests, plan mutations, and participant lookup. Those operations are not all exercised through the browser. Calls to a real hosted LLM, password-reset email, and production deployment are not tested automatically. To try the coach locally with a model, set `AI_API_KEY` (and `AI_PROVIDER`) in `server/.env` and restart the server.
 
 ## Screenshots
 

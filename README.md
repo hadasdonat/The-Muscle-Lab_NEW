@@ -2,9 +2,11 @@
 
 A full-stack gym management application for member self-service, class scheduling, and day-to-day administration.
 
-**Members** manage their profiles, memberships, and class registrations. **Admins** manage trainers and classes and review gym activity. Built with **React, Express, and MySQL**, with JWT authentication and role-protected APIs.
+**Members** manage their profiles, memberships, and class registrations, and get class suggestions from an LLM-backed coach. **Trainers** record attendance for their classes. **Admins** manage trainers and classes and track gym activity. Built with **React, Express, and MySQL**, with JWT authentication and role-protected APIs.
 
-**Engineering highlights:** transaction-safe class booking and membership enrollment · 10-table relational schema · JWT/RBAC · service, MySQL integration, and browser tests.
+**Engineering highlights:** transaction-safe class booking, membership enrollment, and attendance · server-side LLM integration with validated output and a rule-based fallback · 10-table relational schema · JWT/RBAC · unit, MySQL integration, and browser tests.
+
+[Deployment guide](docs/DEPLOYMENT.md)
 
 [Features](#features) · [Local setup](#local-setup) · [Architecture](#architecture) · [API](#api-overview) · [Testing](#testing) · [Screenshots](#screenshots)
 
@@ -12,10 +14,18 @@ A full-stack gym management application for member self-service, class schedulin
 
 | Role | Implemented workflows |
 | --- | --- |
-| Member | Register and sign in; edit profile and photo; change password; enroll in/cancel a membership; register for/cancel classes; view dashboard and monthly calendar. |
-| Admin | View users and membership plans; create, edit, and delete trainer profiles and classes; review dashboard counts and recent activity. Additional APIs support user deletion, plan CRUD, and class participant lookup. |
+| Member | Register and sign in; edit profile and photo; change password; enroll in/cancel a membership; register for/cancel classes; view dashboard and monthly calendar; get an AI Coach class suggestion and register for it in one click. |
+| Trainer | Record who attended each of their own classes, once the class has started. |
+| Admin | View users and membership plans; create, edit, and delete trainer profiles and classes; record attendance for any class; review membership, booking, growth, and attendance metrics. Additional APIs support user deletion, plan CRUD, and class participant lookup. |
 
-The dashboard's **AI Coach** uses rule-based suggestions by default. An optional external `/coach` service can be configured; no language model or external AI backend is bundled.
+### AI Coach
+
+The coach runs on the server. It reads the member's last classes, bookings, and membership from the database, ranks the open classes in the next two weeks (favourite class types, trainers, days, and times; no clashes with existing bookings), and sends a shortlist of up to eight to an LLM, which picks one and explains why. The default provider is Gemini; any OpenAI-compatible API or Claude can be configured.
+
+- The model only chooses among listed options (`c1`…`c8`). Replies are parsed and validated, and class details always come from the database, so a model can't invent a class or a time.
+- Without an API key, or if the model call fails or returns an invalid reply, the coach falls back to the rule-based ranking and says so in the card.
+- The API key stays on the server. The prompt contains the member's first name and class history only, no email or IDs.
+- Suggestions are cached for 10 minutes per member, and the endpoint allows 6 requests per member per minute.
 
 ## Screenshots
 
@@ -57,17 +67,18 @@ Versions are the ranges declared in the package manifests; `npm ci` installs the
 
 ## Architecture
 
-React Router separates public, Member, and Admin views. React Context holds the shared user profile; fetch services communicate with the API. The backend uses routes, authentication/role middleware, controllers, services, and SQL models. Class services and the dashboard controller also query the connection pool directly.
+React Router separates public, Member, Trainer, and Admin views. React Context holds the shared user profile; fetch services communicate with the API. The backend uses routes, authentication/role middleware, controllers, services, and SQL models. Class services and the dashboard controller also query the connection pool directly.
 
 ```mermaid
 flowchart LR
-    Browser[Member / Admin browser] --> React[React views and Context]
+    Browser[Member / Trainer / Admin browser] --> React[React views and Context]
     React -->|HTTP / Bearer JWT| Routes[Express routes]
     Routes --> Guards[Authentication and role middleware]
     Guards --> Controllers[Controllers]
     Controllers --> Services[Services]
     Services --> Models[SQL models / connection pool]
     Models --> DB[(MySQL)]
+    Services -->|AI Coach shortlist| LLM[LLM API: Gemini / OpenAI-compatible / Claude]
     Guards --> Uploads[Multer profile-image storage]
     Uploads --> Files[Local uploads directory]
     Files -->|Static image URLs| Browser
@@ -103,6 +114,9 @@ server/
 - Authentication endpoints use per-IP throttling. Production requires an explicit `CORS_ORIGINS` allowlist; development defaults to loopback browser origins. Bearer headers are validated, and the Express signature header is disabled.
 - Uploads use generated filenames, MIME-derived extensions, a 5 MiB limit, and JPEG/PNG/WebP MIME filtering. Files are public under `/uploads`; this is not content-signature validation.
 - A single `VITE_API_URL` configures API requests and profile-image URLs. A local avatar fallback avoids sending user names to an external avatar service.
+- Attendance saves lock the class row and its registrations in one transaction and update an existing record instead of adding a second one (`Attendance.class_registration_id` is unique). Trainers get the same 404 for another trainer's class as for a missing one, and attendance can't be recorded before a class starts.
+- Dashboard rates are computed from real data: new members this month against last month, members with an active plan, and attendance only where staff recorded it. The eight queries run in parallel.
+- Class times are local wall-clock times. Each database connection sets its session time zone from the server's `TZ`, so "has this class started" is correct on UTC hosts.
 
 ## Database design
 
@@ -149,7 +163,11 @@ All paths below start with `/api`. **Authenticated** means any valid JWT, not a 
 | GET | `/classes/admin/:id/participants` | Admin | Inspect registrations |
 | GET | `/trainers`, `/trainers/:id` | Authenticated | List / inspect trainers |
 | POST / PUT / DELETE | `/trainers`, `/trainers/:id` | Admin | Create / update / delete a trainer profile |
-| GET | `/dashboard/admin-overview` | Admin | Dashboard counts and recent activity |
+| GET | `/dashboard/admin-overview` | Admin | Members, growth, active-plan and attendance rates, next classes, recent bookings |
+| GET | `/coach/insight?refresh=1` | Member | AI Coach suggestion (`source` is `llm` or `rules`); `refresh` skips the cache |
+| GET | `/attendance/classes?from=YYYY-MM-DD&to=YYYY-MM-DD` | Admin, Trainer | Classes with booking and attendance counts (trainers: own classes only) |
+| GET / PUT | `/attendance/classes/:id` | Admin, Trainer | Roster with attendance / save `{ records: [{ registrationId, attended }] }` |
+| GET | `/health` | Public | Health check for hosting platforms |
 
 For grouped CRUD rows, POST uses the collection path; PUT and DELETE use `/:id`.
 
@@ -188,9 +206,10 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 | `server/.env` | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `PORT`, `JWT_SECRET` |
 | `server/.env` | `CORS_ORIGINS`: comma-separated exact frontend origins; required with `NODE_ENV=production`. Blank in development allows localhost/loopback ports. |
 | `client/.env` | `VITE_API_URL`: backend origin, normally `http://localhost:3000`, **without** `/api` |
-| `client/.env` | `VITE_AI_API_URL`: optional external coach origin; leave blank for local suggestions |
+| `server/.env` | `AI_PROVIDER` (`gemini`, `openai`, or `anthropic`), `AI_API_KEY`, optional `AI_MODEL`, `AI_BASE_URL` (OpenAI-compatible APIs), `AI_TIMEOUT_MS`. Leave `AI_API_KEY` blank for rule-based suggestions. |
+| `server/.env` | `TZ`: the gym's time zone, for example `Asia/Jerusalem`. `DB_SSL=true` (and `DB_SSL_CA` if needed) for hosted databases. |
 
-Environment files are ignored. Restart Vite after changing its variables. An external coach URL sends profile, membership, and class data to that service; no browser-side API key is required by the bundled application.
+Environment files are ignored. Restart Vite after changing its variables. The model key is only read by the server; the browser never calls a model directly.
 
 ### 3. Initialize a new local database
 
@@ -225,7 +244,7 @@ The seed contains four **fictional, local-development-only accounts**, all with 
 | Member | `demo-member-one@example.com` |
 | Member | `demo-member-two@example.com` |
 
-These are disposable fixtures, not deployment credentials. Never use these accounts or this password in an Internet-facing deployment. The Trainer role has no dedicated client workspace. The seed stores bcrypt verifiers and leaves phone numbers, birth dates, and gender unset. Updating `seed.sql` does not alter existing databases.
+These are disposable fixtures, not deployment credentials. Never use these accounts or this password in an Internet-facing deployment. The Trainer account opens on the attendance page. The seed stores bcrypt verifiers and leaves phone numbers, birth dates, and gender unset. Updating `seed.sql` does not alter existing databases.
 
 You can also register a Member through `/register`. To create a **new local Admin** with credentials of your own choosing:
 
@@ -234,6 +253,16 @@ DEV_ADMIN_EMAIL=admin@example.invalid DEV_ADMIN_PASSWORD='<choose-a-local-passwo
 ```
 
 Use a password of at least six characters and at most 72 UTF-8 bytes. This command refuses existing emails and does not reset any account. It is disabled when `NODE_ENV=production`.
+
+For realistic data dated around today (three trainers, ten members, five weeks of classes, bookings, and attendance), run this on a freshly set-up database:
+
+```bash
+DEMO_PASSWORD='<choose-a-demo-password>' npm run db:demo --prefix server
+```
+
+It adds `member@musclelab.demo` and `trainer@musclelab.demo`, both using `DEMO_PASSWORD`.
+
+Databases created before attendance tracking need [`001_attendance_unique.sql`](server/database/migrations/001_attendance_unique.sql).
 
 ### 5. Build
 
@@ -254,16 +283,18 @@ npm run lint --prefix client
 
 The default server command runs security/hardening tests and skips the database suite. See [testing instructions](docs/TESTING.md) for the opt-in integration and browser suites, isolated database setup, and screenshot capture.
 
-**Verified locally on 5 November 2026:** 29 backend tests, 7 client tests, and 4 browser scenarios passed with no failures. Clean-source dependency installs, new-database initialization, backend start/dev, frontend dev, and production builds passed using Node 20.20.2 and MySQL 9.6.0. Oxlint reports one Context/Fast Refresh warning and no errors.
+**Verified locally on 12 November 2026:** 47 backend tests (16 unit, 10 security/hardening, 21 MySQL integration), 8 client tests, and 4 browser scenarios passed with no failures, using Node 22 and MySQL 8.0. The LLM path was also exercised end to end against a local OpenAI-compatible stand-in; unit tests cover the Gemini, OpenAI-compatible, and Anthropic request formats. Oxlint reports one Context/Fast Refresh warning and no errors.
 
 ## Current limitations
 
-- Password reset is a form placeholder; it does not send email. Trainer accounts have no dedicated dashboard.
+- Password reset is a form placeholder; it does not send email. Trainers have an attendance page but no schedule or profile management of their own.
 - User and membership-plan Admin screens are read-only; their additional operations are available through APIs. Trainer and class forms select users/trainers by name while preserving UUID-based API payloads.
-- There is no payment processing, personal-training booking API, or attendance-management UI.
-- Dashboard statistics load on page entry; there are no WebSocket updates or historical growth/renewal calculations.
+- There is no payment processing or personal-training booking API.
+- Dashboard statistics load on page entry or on Refresh; there are no live updates or month-by-month history charts.
+- The AI Coach suggests one class at a time and does not learn from feedback. Free LLM tiers have quotas; when one is exceeded the coach falls back to rules.
 - This is a verified local portfolio application, not a claim of production hardening. Image content validation, shared rate-limit storage, token revocation, and several deletion/validation rules remain open; see [security and deployment notes](docs/SECURITY.md).
 
-## Author
+## Authors
 
-[Esther Hadas Vaknin](https://github.com/estisellam)
+- **[Esther Hadas Vaknin](https://github.com/estisellam)**: project setup and database schema, JWT authentication, user profiles, membership plans and enrollment, the public pages (home, about, plans), the classes page, and the security hardening, tests, and documentation for the portfolio release.
+- **[Hadas Donat](https://github.com/hadasdonat)**: the member class calendar, the AI Coach and its LLM integration, the admin dashboard (client and API), attendance tracking for trainers and admins, admin management of trainers and classes, most of the class registration service, and the deployment setup.

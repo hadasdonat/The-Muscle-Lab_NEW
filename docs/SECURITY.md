@@ -11,6 +11,8 @@ The SQL seed contains fictional development accounts at reserved `example.com` a
 - Separate per-IP authentication limits: **15 failed logins per 15 minutes**, and **15 registration requests per hour**. Successful logins do not consume the failed-login allowance. Limited requests receive JSON HTTP 429 and Retry-After.
 - Parameterized SQL and transactional class/membership enrollment.
 - Upload size/MIME limits, generated image extensions, and nosniff headers.
+- AI Coach: the model key is server-only, the endpoint is limited to signed-in Members (6 requests per member per minute, 10-minute cache), prompts carry a first name and class history but no email or IDs, and replies are validated so the model can only choose among listed classes. Model error bodies are not logged.
+- Attendance: Admin or the class's own Trainer only, inside a transaction; other trainers' classes return 404.
 - Explicit CORS policy. If CORS_ORIGINS is blank in development, only localhost/loopback browser origins are accepted. Non-browser clients without an Origin header remain supported and still require authentication for protected APIs.
 
 ## Production CORS configuration
@@ -27,7 +29,7 @@ Use origins without paths or trailing slashes. Production startup refuses an emp
 
 | Concern | Current limitation | Required decision / work |
 | --- | --- | --- |
-| Reverse proxy and distributed throttling | In-memory limits are per process and reset on restart. No proxy is automatically trusted. | Review the actual proxy topology and trusted hops/IP ranges; configure a shared limiter store if running multiple instances. Do not blindly enable trust proxy. |
+| Reverse proxy and distributed throttling | In-memory limits are per process and reset on restart. No proxy is automatically trusted. | Review the actual proxy topology and trusted hops/IP ranges; configure a shared limiter store if running multiple instances. Do not blindly enable trust proxy; set `TRUST_PROXY` to the verified number of hops (the Render blueprint uses 1). |
 | Session revocation | Tokens live for up to seven days; logout clears browser state. Password changes/account deletion do not revoke issued tokens. | Choose a revocation/refresh/session strategy; this needs authentication design work. |
 | Image validation and privacy | Claimed MIME is checked, not decoded image content. Uploads are public, and replaced images remain stored. | Decide on content decoding/re-encoding, private/public access, storage, and retention. Existing user photos were not deleted. |
 | Input and error policies | Some plan/trainer fields and capacity edits need stronger validation; several controllers return low-level messages. | Agree on validation/domain errors and deletion rules. No cascading deletes or schema changes were introduced. |
