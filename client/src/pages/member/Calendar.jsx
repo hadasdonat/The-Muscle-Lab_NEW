@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, CalendarDays } from "lucide-react";
 import { getClassDateCounts, getClassesByDate } from "../../services/api";
+import ClassActions from "../../components/classes/ClassActions";
+import useClassBooking from "../../hooks/useClassBooking";
+import ActivityIcon from "../../components/ui/ActivityIcon";
+import { activityStyle } from "../../utils/activities";
 import "./Calendar.css";
 
 function toDateKey(date) {
@@ -53,7 +57,7 @@ function CalendarPage() {
 
                 const map = {};
                 data.forEach((row) => {
-                    map[row.class_date] = row.count;
+                    map[row.class_date] = { count: row.count, activities: row.activities || [] };
                 });
 
                 setDateCounts(map);
@@ -119,6 +123,8 @@ function CalendarPage() {
         setReloadKey(key => key + 1);
     }
 
+    const booking = useClassBooking(async () => retry());
+
     return (
         <div className="calendar-page">
             <div className="calendar-header">
@@ -161,7 +167,8 @@ function CalendarPage() {
                         }
 
                         const key = toDateKey(day);
-                        const count = dateCounts[key] || 0;
+                        const count = dateCounts[key]?.count || 0;
+                        const dayActivities = dateCounts[key]?.activities || [];
                         const isSelected = key === selectedDate;
 
                         return (
@@ -175,6 +182,11 @@ function CalendarPage() {
                             >
                                 <span>{day.getDate()}</span>
                                 {count > 0 && <small>{count} class{count > 1 ? "es" : ""}</small>}
+                                {dayActivities.length > 0 && (
+                                    <span className="calendar-dots" aria-hidden="true">
+                                        {dayActivities.slice(0, 5).map(name => <i key={name} style={{ background: activityStyle(name).color }} />)}
+                                    </span>
+                                )}
                             </button>
                         );
                     })}
@@ -195,11 +207,19 @@ function CalendarPage() {
                         </div>
                     ) : selectedClasses.length > 0 ? (
                         selectedClasses.map((gymClass) => (
-                            <div key={gymClass.id} className="calendar-class-card">
-                                <h3>{gymClass.title}</h3>
+                            <div key={gymClass.id} className="calendar-class-card" style={{ "--accent": activityStyle(gymClass.activity).color }}>
+                                <div className="calendar-class-head">
+                                    <span className="calendar-class-icon"><ActivityIcon name={gymClass.activity} size={16} /></span>
+                                    <h3>{gymClass.title}</h3>
+                                </div>
                                 <p>{gymClass.trainer_name}</p>
                                 <span>{String(gymClass.start_time).slice(0, 5)}–{String(gymClass.end_time).slice(0, 5)}</span>
-                                <small>{gymClass.room}</small>
+                                <small>{gymClass.room}{gymClass.room ? " · " : ""}{gymClass.available_spots > 0 ? `${gymClass.available_spots} places left` : "Full"}</small>
+                                {gymClass.has_started ? (
+                                    <em className="calendar-past">{gymClass.is_registered ? "You took this class" : "Already started"}</em>
+                                ) : (
+                                    <ClassActions gymClass={gymClass} busy={booking.busyId === gymClass.id} compact {...booking} />
+                                )}
                             </div>
                         ))
                     ) : (

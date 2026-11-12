@@ -60,7 +60,7 @@ function Login() {
 
             } else if (user.role === "Trainer") {
 
-                navigate("/trainer/attendance");
+                navigate("/trainer/dashboard");
 
             } else {
 

@@ -109,4 +109,52 @@ export async function cancelClassRegistration(classId) {
 
 }
 
+export async function getUpcomingClasses() {
+    return apiRequest("/classes?when=upcoming");
+}
+
+export async function joinWaitlist(classId) {
+    return apiRequest(`/classes/${classId}/waitlist`, { method: "POST" });
+}
+
+export async function leaveWaitlist(classId) {
+    return apiRequest(`/classes/${classId}/waitlist`, { method: "DELETE" });
+}
+
+export async function rateClass(classId, rating, comment) {
+    return apiRequest(`/classes/${classId}/rating`, { method: "POST", body: JSON.stringify({ rating, comment }) });
+}
+
+export async function getFavorites() {
+    return apiRequest("/me/favorites");
+}
+
+export async function setFavorite(activity, favorite) {
+    return apiRequest(`/me/favorites/${encodeURIComponent(activity)}`, { method: favorite ? "PUT" : "DELETE" });
+}
+
+export async function getProgress() {
+    return apiRequest("/me/progress");
+}
+
+export async function getClassesToRate() {
+    return apiRequest("/me/to-rate");
+}
+
+export async function getNotifications() {
+    return apiRequest("/notifications");
+}
+
+export async function markNotificationsRead(id) {
+    return apiRequest("/notifications/read", { method: "POST", body: JSON.stringify(id ? { id } : {}) });
+}
+
+export async function sendCoachMessage(messages) {
+    return apiRequest("/coach/chat", { method: "POST", body: JSON.stringify({ messages }) });
+}
+
+export async function getTrainerOverview() {
+    return apiRequest("/trainer/overview");
+}
+
 export default apiRequest;

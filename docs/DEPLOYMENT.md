@@ -39,7 +39,7 @@ Both use `DEMO_PASSWORD`. Anyone with the link can sign in with them, so they on
 
 Demo classes are dated relative to the day you run `db:demo`. Re-run it on a fresh database (new `DB_NAME`) when the schedule gets old.
 
-**Without a terminal:** create an empty database (for example `CREATE DATABASE muscle_lab;` in the provider's SQL console), set `DEMO_PASSWORD` on the API service, and use the start command `npm run start:hosted`. On its first start the API creates the tables, roles, plans and demo data; on later starts it sees the tables and skips this step.
+**Without a terminal:** create an empty database (for example `CREATE DATABASE muscle_lab;` in the provider's SQL console), set `DEMO_PASSWORD` on the API service, and use the start command `npm run start:hosted`. On its first start the API creates the tables, roles, plans and demo data. On every start it applies pending migrations and tops up the demo schedule, so there are always classes for the next two weeks; nothing is duplicated.
 
 ## 3. Get an AI key (optional)
 

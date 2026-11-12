@@ -14,8 +14,8 @@ A full-stack gym management application for member self-service, class schedulin
 
 | Role | Implemented workflows |
 | --- | --- |
-| Member | Register and sign in; edit profile and photo; change password; enroll in/cancel a membership; register for/cancel classes; view dashboard and monthly calendar; get an AI Coach class suggestion and register for it in one click. |
-| Trainer | Record who attended each of their own classes, once the class has started. |
+| Member | Register and sign in; edit profile and photo; change password; enroll in/cancel a membership; browse 14 activity types with day, activity and favourite filters; register, cancel, or join a waitlist when a class is full (and get the place automatically when someone cancels); book from the monthly calendar; save favourite activities; rate classes after they end; follow progress with weekly charts, streaks and badges; get an AI Coach suggestion and chat with the coach by text or voice; receive in-app notifications. |
+| Trainer | See the week's schedule with bookings and waitlists, average rating and recent comments; record who attended each of their own classes, once the class has started. |
 | Admin | View users and membership plans; create, edit, and delete trainer profiles and classes; record attendance for any class; review membership, booking, growth, and attendance metrics. Additional APIs support user deletion, plan CRUD, and class participant lookup. |
 
 ### AI Coach
@@ -26,6 +26,8 @@ The coach runs on the server. It reads the member's last classes, bookings, and 
 - Without an API key, or if the model call fails or returns an invalid reply, the coach falls back to the rule-based ranking and says so in the card.
 - The API key stays on the server. The prompt contains the member's first name and class history only, no email or IDs.
 - Suggestions are cached for 10 minutes per member, and the endpoint allows 6 requests per member per minute.
+
+**Coach chat.** Members can also talk to the coach (`/member/coach`): the server sends the conversation, the member's history and favourites, and up to 20 open classes to the model, which replies in the member's language (English or Hebrew) and may attach up to three of those classes as bookable cards. Voice input uses the browser's speech recognition (English or Hebrew), and replies can be read aloud with speech synthesis; both are optional and hidden where the browser doesn't support them. Without a model, the chat finds the activity the member mentioned and lists its next open classes. The prompt tells the model not to give medical advice.
 
 ## Screenshots
 
@@ -115,12 +117,14 @@ server/
 - Uploads use generated filenames, MIME-derived extensions, a 5 MiB limit, and JPEG/PNG/WebP MIME filtering. Files are public under `/uploads`; this is not content-signature validation.
 - A single `VITE_API_URL` configures API requests and profile-image URLs. A local avatar fallback avoids sending user names to an external avatar service.
 - Attendance saves lock the class row and its registrations in one transaction and update an existing record instead of adding a second one (`Attendance.class_registration_id` is unique). Trainers get the same 404 for another trainer's class as for a missing one, and attendance can't be recorded before a class starts.
+- When a member cancels, the first person on that class's waitlist is registered in the same transaction and gets a notification. Joining a waitlist is only possible when the class is full and hasn't started.
+- Schema changes are SQL files in `server/database/migrations`, applied in order and recorded in `SchemaMigrations`. Setup and the hosted start command apply pending migrations automatically.
 - Dashboard rates are computed from real data: new members this month against last month, members with an active plan, and attendance only where staff recorded it. The eight queries run in parallel.
 - Class times are local wall-clock times. Each database connection sets its session time zone from the server's `TZ`, so "has this class started" is correct on UTC hosts.
 
 ## Database design
 
-[`schema.sql`](server/database/schema.sql) defines **10 tables**: `Roles`, `Users`, `Trainers`, `MembershipPlans`, `UserMemberships`, `Classes`, `ClassRegistrations`, `Attendance`, `PersonalTrainingAppointments`, and `Payments`.
+[`schema.sql`](server/database/schema.sql) defines **10 tables**, and migration `002` adds `ClassWaitlist`, `FavoriteActivities`, `Notifications` and `ClassRatings` plus activity and intensity columns on `Classes`. The base tables are: `Roles`, `Users`, `Trainers`, `MembershipPlans`, `UserMemberships`, `Classes`, `ClassRegistrations`, `Attendance`, `PersonalTrainingAppointments`, and `Payments`.
 
 ```mermaid
 erDiagram
@@ -167,6 +171,14 @@ All paths below start with `/api`. **Authenticated** means any valid JWT, not a 
 | GET | `/coach/insight?refresh=1` | Member | AI Coach suggestion (`source` is `llm` or `rules`); `refresh` skips the cache |
 | GET | `/attendance/classes?from=YYYY-MM-DD&to=YYYY-MM-DD` | Admin, Trainer | Classes with booking and attendance counts (trainers: own classes only) |
 | GET / PUT | `/attendance/classes/:id` | Admin, Trainer | Roster with attendance / save `{ records: [{ registrationId, attended }] }` |
+| POST | `/coach/chat` | Member | Chat with the coach: `{ messages: [{ role, content }] }`, returns `reply` and bookable `classes` |
+| POST / DELETE | `/classes/:id/waitlist` | Member | Join / leave a full class's waitlist |
+| POST | `/classes/:id/rating` | Member | Rate a finished class: `{ rating: 1-5, comment }` |
+| GET / PUT / DELETE | `/me/favorites`, `/me/favorites/:activity` | Member | Favourite activities |
+| GET | `/me/progress`, `/me/to-rate` | Member | Weekly counts, streaks and badges / recent classes waiting for a rating |
+| GET / POST | `/notifications`, `/notifications/read` | Authenticated | Latest notifications / mark one (`{ id }`) or all as read |
+| GET | `/trainer/overview` | Trainer | The week's classes, rating and attendance summary |
+| GET | `/activities` | Public | The activity catalog |
 | GET | `/health` | Public | Health check for hosting platforms |
 
 For grouped CRUD rows, POST uses the collection path; PUT and DELETE use `/:id`.
@@ -283,7 +295,7 @@ npm run lint --prefix client
 
 The default server command runs security/hardening tests and skips the database suite. See [testing instructions](docs/TESTING.md) for the opt-in integration and browser suites, isolated database setup, and screenshot capture.
 
-**Verified locally on 12 November 2026:** 47 backend tests (16 unit, 10 security/hardening, 21 MySQL integration), 8 client tests, and 4 browser scenarios passed with no failures, using Node 22 and MySQL 8.0. The LLM path was also exercised end to end against a local OpenAI-compatible stand-in; unit tests cover the Gemini, OpenAI-compatible, and Anthropic request formats. Oxlint reports one Context/Fast Refresh warning and no errors.
+**Verified locally on 12 November 2026:** 59 backend tests (25 unit, 10 security/hardening, 24 MySQL integration), 8 client tests, and 4 browser scenarios passed with no failures, using Node 22 and MySQL 8.0. The demo deployment runs on TiDB Cloud (MySQL-compatible). The LLM path was also exercised end to end against a local OpenAI-compatible stand-in; unit tests cover the Gemini, OpenAI-compatible, and Anthropic request formats. Oxlint reports one Context/Fast Refresh warning and no errors.
 
 ## Current limitations
 

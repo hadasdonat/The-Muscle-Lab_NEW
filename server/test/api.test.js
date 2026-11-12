@@ -242,4 +242,81 @@ describe("HTTP integration against an explicitly isolated test database", { skip
         const overview = await request("GET", "/dashboard/admin-overview", undefined, adminToken);
         assert.ok(overview.data.attendance.recorded >= 1);
     });
+    test("full classes take a waitlist and the first waiting member gets a place when someone cancels", async () => {
+        const second = { ...credentials("second"), email: `second-${suffix}@example.invalid` };
+        assert.equal((await request("POST", "/auth/register", second)).status, 201);
+        const secondLogin = await request("POST", "/auth/login", { email: second.email, password });
+        const secondToken = secondLogin.data.token;
+        await pool.execute(
+            "INSERT INTO Classes (trainer_id, title, class_date, start_time, end_time, room, capacity, activity, intensity) VALUES (?, ?, CURRENT_DATE + INTERVAL 2 DAY, '18:00:00', '19:00:00', 'Combat Zone', 1, 'Boxing', 'High')",
+            [trainerId, `Waitlist-${suffix}`]
+        );
+        const [[full]] = await pool.execute("SELECT id FROM Classes WHERE title = ?", [`Waitlist-${suffix}`]);
+        assert.equal((await request("POST", `/classes/${full.id}/waitlist`, undefined, memberToken)).status, 409, "no waitlist while there is room");
+        assert.equal((await request("POST", `/classes/${full.id}/register`, undefined, memberToken)).status, 201);
+        assert.equal((await request("POST", `/classes/${full.id}/register`, undefined, secondToken)).status, 409);
+        const joined = await request("POST", `/classes/${full.id}/waitlist`, undefined, secondToken);
+        assert.equal(joined.status, 201);
+        assert.equal(joined.data.position, 1);
+        const listed = (await request("GET", "/classes?when=upcoming", undefined, secondToken)).data.find(c => c.id === full.id);
+        assert.equal(listed.waitlist_position, 1);
+        assert.equal(listed.activity, "Boxing");
+        assert.ok(listed.has_started === false);
+
+        assert.equal((await request("DELETE", `/classes/${full.id}/register`, undefined, memberToken)).status, 200);
+        const mine = await request("GET", "/classes/my", undefined, secondToken);
+        assert.ok(mine.data.some(c => c.id === full.id), "the waiting member was registered");
+        const notes = await request("GET", "/notifications", undefined, secondToken);
+        assert.equal(notes.data.unread, 1);
+        assert.match(notes.data.items[0].title, /You're in/);
+        const read = await request("POST", "/notifications/read", {}, secondToken);
+        assert.equal(read.data.unread, 0);
+        assert.equal((await request("DELETE", `/classes/${full.id}/waitlist`, undefined, secondToken)).status, 404);
+    });
+    test("favourites, progress, ratings and the coach chat work for members", async () => {
+        assert.equal((await request("PUT", "/me/favorites/Boxing", undefined, memberToken)).status, 200);
+        assert.deepEqual((await request("GET", "/me/favorites", undefined, memberToken)).data, ["Boxing"]);
+        assert.equal((await request("PUT", "/me/favorites/Underwater", undefined, memberToken)).status, 400);
+        assert.deepEqual((await request("DELETE", "/me/favorites/Boxing", undefined, memberToken)).data, []);
+
+        await pool.execute(
+            "INSERT INTO Classes (trainer_id, title, class_date, start_time, end_time, room, capacity, activity) VALUES (?, ?, CURRENT_DATE - INTERVAL 1 DAY, '08:00:00', '09:00:00', 'Studio B', 10, 'Yoga')",
+            [trainerId, `Rated-${suffix}`]
+        );
+        const [[past]] = await pool.execute("SELECT id FROM Classes WHERE title = ?", [`Rated-${suffix}`]);
+        assert.equal((await request("POST", `/classes/${past.id}/rating`, { rating: 5 }, memberToken)).status, 404, "not registered");
+        await pool.execute("INSERT INTO ClassRegistrations (class_id, user_id) VALUES (?, ?)", [past.id, memberId]);
+        const toRate = await request("GET", "/me/to-rate", undefined, memberToken);
+        assert.ok(toRate.data.some(c => c.id === past.id));
+        assert.equal((await request("POST", `/classes/${past.id}/rating`, { rating: 9 }, memberToken)).status, 400);
+        const rated = await request("POST", `/classes/${past.id}/rating`, { rating: 5, comment: "Lovely" }, memberToken);
+        assert.equal(rated.status, 200);
+        assert.ok(!(await request("GET", "/me/to-rate", undefined, memberToken)).data.some(c => c.id === past.id));
+
+        const progress = await request("GET", "/me/progress", undefined, memberToken);
+        assert.equal(progress.status, 200);
+        assert.ok(progress.data.total >= 1);
+        assert.ok(progress.data.badges.find(b => b.id === "first-class").earned);
+
+        const chat = await request("POST", "/coach/chat", { messages: [{ role: "user", content: "Any yoga soon?" }] }, memberToken);
+        assert.equal(chat.status, 200);
+        assert.ok(["rules", "llm"].includes(chat.data.source));
+        assert.equal(typeof chat.data.reply, "string");
+        assert.equal((await request("POST", "/coach/chat", { messages: [] }, memberToken)).status, 400);
+        assert.equal((await request("POST", "/coach/chat", { messages: [{ role: "user", content: "hi" }] }, adminToken)).status, 403);
+        assert.equal((await request("GET", "/activities")).data.length, 14);
+    });
+    test("trainers get an overview of their week and ratings", async () => {
+        const account = credentials("coach");
+        assert.equal((await request("POST", "/auth/register", account)).status, 201);
+        await pool.execute("UPDATE Users SET role_id = (SELECT id FROM Roles WHERE name = 'Trainer') WHERE email = ?", [account.email]);
+        const [[user]] = await pool.execute("SELECT id FROM Users WHERE email = ?", [account.email]);
+        await pool.execute("INSERT INTO Trainers (user_id, specialization) VALUES (?, 'Yoga')", [user.id]);
+        const token = (await request("POST", "/auth/login", { email: account.email, password })).data.token;
+        const overview = await request("GET", "/trainer/overview", undefined, token);
+        assert.equal(overview.status, 200);
+        assert.equal(overview.data.trainer.specialization, "Yoga");
+        assert.ok(Array.isArray(overview.data.schedule));
+        assert.equal((await request("GET", "/trainer/overview", undefined, memberToken)).status, 403);
+    });
 });

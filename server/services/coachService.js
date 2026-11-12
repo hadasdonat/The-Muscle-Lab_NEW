@@ -33,7 +33,7 @@ function mostCommon(values) {
 }
 
 export async function loadCoachContext(userId) {
-    const [[profileRows], [membershipRows], [historyRows], [upcomingRows], [candidateRows]] = await Promise.all([
+    const [[profileRows], [membershipRows], [historyRows], [upcomingRows], [candidateRows], [favoriteRows]] = await Promise.all([
         pool.execute(`SELECT first_name FROM Users WHERE id = ?`, [userId]),
         pool.execute(
             `SELECT mp.name, um.end_date
@@ -44,7 +44,7 @@ export async function loadCoachContext(userId) {
             [userId]
         ),
         pool.execute(
-            `SELECT c.title, c.trainer_id, CONCAT(u.first_name, ' ', u.last_name) AS trainer_name,
+            `SELECT c.title, c.activity, c.trainer_id, CONCAT(u.first_name, ' ', u.last_name) AS trainer_name,
                     c.class_date, c.start_time, c.end_time, a.attended
              FROM ClassRegistrations cr
              INNER JOIN Classes c ON c.id = cr.class_id
@@ -67,7 +67,7 @@ export async function loadCoachContext(userId) {
             [userId]
         ),
         pool.execute(
-            `SELECT c.id, c.title, c.description, c.trainer_id, c.class_date, c.start_time, c.end_time,
+            `SELECT c.id, c.title, c.description, c.activity, c.intensity, c.trainer_id, c.class_date, c.start_time, c.end_time,
                     c.room, c.capacity, CONCAT(u.first_name, ' ', u.last_name) AS trainer_name,
                     c.capacity - COALESCE(rc.registered, 0) AS available_spots
              FROM Classes c
@@ -87,7 +87,8 @@ export async function loadCoachContext(userId) {
              ORDER BY c.class_date, c.start_time
              LIMIT 40`,
             [userId]
-        )
+        ),
+        pool.execute(`SELECT activity FROM FavoriteActivities WHERE user_id = ?`, [userId])
     ]);
 
     return {
@@ -95,13 +96,14 @@ export async function loadCoachContext(userId) {
         membership: membershipRows[0] || null,
         history: historyRows,
         upcoming: upcomingRows,
-        candidates: candidateRows.map(row => ({ ...row, available_spots: Number(row.available_spots) }))
+        candidates: candidateRows.map(row => ({ ...row, available_spots: Number(row.available_spots) })),
+        favorites: favoriteRows.map(row => row.activity)
     };
 }
 
 // Deterministic ranking. It is the fallback when no LLM is configured, and it also
 // shortlists the classes the LLM chooses from, so the model never sees the whole schedule.
-export function rankCandidates({ history = [], upcoming = [], candidates = [] }) {
+export function rankCandidates({ history = [], upcoming = [], candidates = [], favorites = [] }) {
     const titles = new Map();
     const trainers = new Map();
     for (const item of history) {
@@ -138,6 +140,10 @@ export function rankCandidates({ history = [], upcoming = [], candidates = [] })
                 score += 1;
                 reasons.push("It starts around the time you usually train.");
             }
+            if (favorites.includes(candidate.activity)) {
+                score += 1.5;
+                reasons.push(`${candidate.activity} is one of your favourites.`);
+            }
             const fillRatio = candidate.capacity > 0 ? candidate.available_spots / candidate.capacity : 0;
             if (fillRatio <= 0.2) reasons.push(`Only ${candidate.available_spots} spot${candidate.available_spots === 1 ? "" : "s"} left.`);
             return { candidate, score, reasons };
@@ -148,10 +154,11 @@ export function rankCandidates({ history = [], upcoming = [], candidates = [] })
             a.candidate.start_time.localeCompare(b.candidate.start_time));
 }
 
-function toSuggestion(candidate) {
+export function toSuggestion(candidate) {
     return {
         classId: candidate.id,
         title: candidate.title,
+        activity: candidate.activity || null,
         trainer: candidate.trainer_name,
         date: candidate.class_date,
         startTime: String(candidate.start_time).slice(0, 5),

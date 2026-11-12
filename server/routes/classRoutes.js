@@ -10,7 +10,10 @@ import {
     deleteClassController,
     getClassParticipantsController,
     getClassDateCountsController,
-    getClassesByDateController
+    getClassesByDateController,
+    joinWaitlistController,
+    leaveWaitlistController,
+    rateClassController
 } from "../controllers/classController.js";
 
 import { authMiddleware } from "../middlewares/authMiddleware.js";
@@ -25,6 +28,9 @@ router.get("/date-counts", authMiddleware, getClassDateCountsController);
 router.get("/by-date/:date", authMiddleware, getClassesByDateController);
 router.post("/:id/register", authMiddleware, registerToClassController);
 router.delete("/:id/register", authMiddleware, cancelClassRegistrationController);
+router.post("/:id/waitlist", authMiddleware, authorizeRoles("Member"), joinWaitlistController);
+router.delete("/:id/waitlist", authMiddleware, authorizeRoles("Member"), leaveWaitlistController);
+router.post("/:id/rating", authMiddleware, authorizeRoles("Member"), rateClassController);
 
 // Admin endpoints
 router.get("/admin", authMiddleware, authorizeRoles("Admin"), getAllClassesAdminController);

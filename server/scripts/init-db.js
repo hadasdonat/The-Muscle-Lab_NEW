@@ -1,14 +1,16 @@
-// Prepares an existing, empty hosted database on first start, then exits so the server can start.
-// It creates the tables, adds the roles and membership plans, and (when DEMO_PASSWORD is set)
-// the demo data. If the tables already exist it does nothing, so it is safe on every deploy.
+// Runs before the API starts on a hosted database:
+// 1. an empty database gets the tables, roles and membership plans;
+// 2. pending migrations are applied;
+// 3. with DEMO_PASSWORD set, demo data is added or topped up (the schedule rolls forward).
+// Every step is skipped when there is nothing to do, so it is safe on every start.
 //
 // Render start command: npm run start:hosted
 import mysql from "mysql2/promise";
 import dotenv from "dotenv";
 import { readFile } from "node:fs/promises";
-import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { connectionOptions } from "../config/dbOptions.js";
+import { connectionOptions, sessionTimeZone } from "../config/dbOptions.js";
+import { runMigrations } from "../database/migrate.js";
+import { ensureDemoData } from "../services/demoData.js";
 
 dotenv.config({ path: new URL("../.env", import.meta.url).pathname });
 const database = process.env.DB_NAME;
@@ -18,30 +20,31 @@ async function main() {
         console.log("DB init: DB_NAME is not set, skipping.");
         return;
     }
-    const connection = await mysql.createConnection({ ...connectionOptions(), database, multipleStatements: true });
+    const connection = await mysql.createConnection({ ...connectionOptions(), database, multipleStatements: true, dateStrings: true });
     try {
+        await connection.query(`SET time_zone = '${sessionTimeZone()}'`);
         const [tables] = await connection.query("SHOW TABLES LIKE 'Roles'");
-        if (tables.length > 0) {
-            console.log("DB init: tables already exist, nothing to do.");
-            return;
+        if (tables.length === 0) {
+            const schema = await readFile(new URL("../database/schema.sql", import.meta.url), "utf8");
+            const seed = await readFile(new URL("../database/seed.sql", import.meta.url), "utf8");
+            await connection.query(schema.replace(/^(?:DROP DATABASE|CREATE DATABASE|USE )[^\n]*\n?/gm, ""));
+            // Only roles and plans from the local seed; its accounts have a published password.
+            await connection.query(seed.slice(seed.indexOf("-- Roles"), seed.indexOf("-- Users")));
+            console.log("DB init: created tables, roles and membership plans.");
         }
-        const schema = await readFile(new URL("../database/schema.sql", import.meta.url), "utf8");
-        const seed = await readFile(new URL("../database/seed.sql", import.meta.url), "utf8");
-        await connection.query(schema.replace(/^(?:DROP DATABASE|CREATE DATABASE|USE )[^\n]*\n?/gm, ""));
-        // Only roles and plans from the local seed; its accounts have a published password.
-        const reference = seed.slice(seed.indexOf("-- Roles"), seed.indexOf("-- Users"));
-        await connection.query(reference);
-        console.log("DB init: created tables, roles and membership plans.");
+        await runMigrations(connection, message => console.log(`DB init: ${message}`));
+        if (process.env.DEMO_PASSWORD) {
+            await connection.beginTransaction();
+            try {
+                await ensureDemoData(connection, { password: process.env.DEMO_PASSWORD, log: message => console.log(`DB init: ${message}`) });
+                await connection.commit();
+            } catch (error) {
+                await connection.rollback();
+                throw error;
+            }
+        }
     } finally {
         await connection.end();
-    }
-
-    if (process.env.DEMO_PASSWORD) {
-        const result = spawnSync(process.execPath, [fileURLToPath(new URL("./seed-demo.js", import.meta.url))], {
-            env: { ...process.env, ALLOW_DEMO_SEED: "1" },
-            stdio: "inherit"
-        });
-        if (result.status !== 0) console.error("DB init: demo data could not be added.");
     }
 }
 

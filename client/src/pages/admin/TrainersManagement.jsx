@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import apiRequest from "../../services/api";
+import { useConfirm } from "../../components/ui/ConfirmDialog";
 import "./UsersManagement.css";
 
 function TrainersManagement() {
+    const confirm = useConfirm();
     const [trainers, setTrainers] = useState([]);
     const [users, setUsers] = useState([]);
     const [loadError, setLoadError] = useState("");
@@ -66,11 +69,12 @@ function TrainersManagement() {
                 });
             }
 
+            toast.success(editingId ? "Trainer profile updated" : "Trainer added");
             setForm({ user_id: "", specialization: "", experience_years: "", biography: "" });
             setEditingId(null);
             loadTrainers();
         } catch (error) {
-            alert(error.message || "Failed to save trainer");
+            toast.error(error.message || "Failed to save trainer");
         }
     }
 
@@ -85,13 +89,16 @@ function TrainersManagement() {
     }
 
     async function handleDelete(id) {
-        if (!window.confirm("Delete this trainer?")) return;
+        const trainer = trainers.find(t => t.id === id);
+        const ok = await confirm({ title: `Delete ${trainer ? `${trainer.first_name} ${trainer.last_name}` : "this trainer"}?`, message: "Their user account stays; only the trainer profile is removed. Trainers with classes can't be deleted.", confirmLabel: "Delete trainer", danger: true });
+        if (!ok) return;
 
         try {
             await apiRequest(`/trainers/${id}`, { method: "DELETE" });
+            toast.success("Trainer removed");
             loadTrainers();
         } catch (error) {
-            alert(error.message || "Failed to delete trainer");
+            toast.error(error.message || "Failed to delete trainer");
         }
     }
 

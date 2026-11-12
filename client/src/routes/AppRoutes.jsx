@@ -20,6 +20,8 @@ import Dashboard from "../pages/member/Dashboard";
 import Profile from "../pages/member/Profile";
 import MyMembership from "../pages/member/MyMembership";
 import CalendarPage from "../pages/member/Calendar";
+import Progress from "../pages/member/Progress";
+import CoachChat from "../pages/member/CoachChat";
 
 // Admin Pages
 import UsersManagement from "../pages/admin/UsersManagement";
@@ -30,6 +32,7 @@ import AdminDashboard from "../pages/admin/AdminDashboard";
 
 // Staff Pages
 import AttendancePage from "../pages/staff/Attendance";
+import TrainerDashboard from "../pages/staff/TrainerDashboard";
 
 //classes page
 import Classes from "../pages/Classes/Classes";
@@ -85,6 +88,8 @@ function AppRoutes() {
                     path="/member/calendar"
                     element={<CalendarPage />}
                 />
+                <Route path="/member/progress" element={<Progress />} />
+                <Route path="/member/coach" element={<CoachChat />} />
             </Route>
 
 
@@ -133,6 +138,7 @@ function AppRoutes() {
                     </ProtectedRoute>
                 }
             >
+                <Route path="/trainer/dashboard" element={<TrainerDashboard />} />
                 <Route
                     path="/trainer/attendance"
                     element={<AttendancePage />}

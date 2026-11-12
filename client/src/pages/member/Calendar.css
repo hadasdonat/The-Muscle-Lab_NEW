@@ -153,3 +153,65 @@
     background: transparent;
     color: inherit;
 }
+
+.calendar-dots {
+    display: flex;
+    gap: 3px;
+    margin-top: 4px;
+}
+
+.calendar-dots i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+.calendar-class-card {
+    display: grid;
+    gap: 4px;
+    border-left: 3px solid var(--accent, var(--primary));
+}
+
+.calendar-class-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.calendar-class-icon {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--accent, var(--primary)) 18%, transparent);
+    color: var(--accent, var(--primary));
+}
+
+.calendar-class-card .class-button,
+.calendar-class-card .class-actions {
+    margin-top: 8px;
+}
+
+.calendar-past {
+    margin-top: 6px;
+    color: var(--text-secondary, #a1a1aa);
+    font-size: 12px;
+    font-style: normal;
+}
+
+@media (max-width: 600px) {
+    .calendar-day small {
+        display: none;
+    }
+
+    .calendar-dots {
+        flex-wrap: wrap;
+        gap: 2px;
+    }
+
+    .calendar-dots i {
+        width: 5px;
+        height: 5px;
+    }
+}

@@ -1,4 +1,5 @@
 import { profileImageUrl } from "../../services/config";
+import NotificationBell from "./NotificationBell";
 import "./TopBar.css";
 
 function TopBar({
@@ -38,6 +39,8 @@ function TopBar({
             </div>
 
             <div className="topbar-right">
+
+                <NotificationBell />
 
                 <div className="user-info">
 

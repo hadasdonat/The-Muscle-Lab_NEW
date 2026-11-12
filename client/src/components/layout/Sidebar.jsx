@@ -8,6 +8,8 @@ import {
     FiCalendar,
     FiBarChart2,
     FiCheckSquare,
+    FiTrendingUp,
+    FiMessageCircle,
 } from "react-icons/fi";
 
 import { logout, getCurrentUser } from "../../services/authService";
@@ -80,10 +82,16 @@ function Sidebar() {
                         </NavLink>
                     </>
                 ) : user?.role === "Trainer" ? (
-                    <NavLink to="/trainer/attendance" className={linkClass}>
-                        <FiCheckSquare />
-                        Attendance
-                    </NavLink>
+                    <>
+                        <NavLink to="/trainer/dashboard" className={linkClass}>
+                            <FiHome />
+                            My Week
+                        </NavLink>
+                        <NavLink to="/trainer/attendance" className={linkClass}>
+                            <FiCheckSquare />
+                            Attendance
+                        </NavLink>
+                    </>
                 ) : (
                     <>
                         <NavLink to="/member/dashboard" className={linkClass}>
@@ -105,6 +113,14 @@ function Sidebar() {
                         <NavLink to="/member/calendar" className={linkClass}>
                             <FiCalendar />
                             Calendar
+                        </NavLink>
+                        <NavLink to="/member/progress" className={linkClass}>
+                            <FiTrendingUp />
+                            Progress
+                        </NavLink>
+                        <NavLink to="/member/coach" className={linkClass}>
+                            <FiMessageCircle />
+                            AI Coach
                         </NavLink>
                     </>
                 )}

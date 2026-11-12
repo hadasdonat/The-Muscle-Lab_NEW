@@ -231,3 +231,207 @@
     }
 
 }
+
+/* ---- additions: upcoming list, rating, chat teaser ---- */
+.stat-card small {
+    display: block;
+    margin-top: 6px;
+    color: #a1a1aa;
+    font-size: 13px;
+}
+
+.stat-card small a,
+.card-link {
+    color: #FFD400;
+    text-decoration: none;
+}
+
+.stat-card.skeleton {
+    height: 140px;
+    background: linear-gradient(90deg, #18181b 0%, #222 50%, #18181b 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.2s infinite;
+}
+
+.card-header .card-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    font-size: 13px;
+}
+
+.muted {
+    color: #a1a1aa;
+    font-size: 14px;
+}
+
+.upcoming-list {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.upcoming-list li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid #2a2a2a;
+    border-left: 3px solid var(--accent, #FFD400);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.upcoming-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--accent, #FFD400) 16%, transparent);
+    color: var(--accent, #FFD400);
+}
+
+.upcoming-info {
+    display: grid;
+    flex: 1;
+    gap: 2px;
+    min-width: 0;
+}
+
+.upcoming-info strong {
+    color: #fff;
+}
+
+.upcoming-info span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #a1a1aa;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.upcoming-list .upcoming-more {
+    justify-content: center;
+    border-left-color: #2a2a2a;
+    color: #a1a1aa;
+    font-size: 13px;
+}
+
+.dash-empty {
+    display: grid;
+    justify-items: start;
+    gap: 12px;
+    color: #a1a1aa;
+}
+
+.rate-card {
+    border-top: 3px solid var(--accent, #FFD400);
+}
+
+.stars {
+    display: flex;
+    gap: 6px;
+    margin: 12px 0;
+}
+
+.stars button {
+    padding: 2px;
+    border: 0;
+    background: none;
+    color: #3f3f46;
+    cursor: pointer;
+    transition: color 0.12s, transform 0.12s;
+}
+
+.stars button.on {
+    color: #FFD400;
+}
+
+.stars button:hover {
+    transform: scale(1.12);
+}
+
+.rate-card textarea {
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    background: #111;
+    color: #f5f5f5;
+    font: inherit;
+    font-size: 14px;
+    resize: vertical;
+}
+
+.dash-primary {
+    padding: 10px 18px;
+    border: 0;
+    border-radius: 10px;
+    background: #FFD400;
+    color: #111;
+    font-weight: 700;
+}
+
+.dash-primary:disabled {
+    opacity: 0.6;
+}
+
+.chat-teaser {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 20px;
+    color: #f5f5f5;
+    text-decoration: none;
+    transition: border-color 0.2s, transform 0.2s;
+}
+
+.chat-teaser:hover {
+    transform: translateY(-2px);
+    border-color: #7C3AED;
+}
+
+.chat-teaser > span:nth-child(2) {
+    display: grid;
+    flex: 1;
+    gap: 2px;
+}
+
+.chat-teaser small {
+    color: #a1a1aa;
+    font-size: 13px;
+}
+
+.chat-teaser-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(124, 58, 237, 0.18);
+    color: #c4b5fd;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.dashboard-page a:focus-visible,
+.dashboard-page button:focus-visible,
+.dashboard-page textarea:focus-visible {
+    outline: 2px solid #FFD400;
+    outline-offset: 2px;
+}

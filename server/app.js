@@ -13,6 +13,10 @@ import trainerRoutes from "./routes/trainerRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import coachRoutes from "./routes/coachRoutes.js";
 import attendanceRoutes from "./routes/attendanceRoutes.js";
+import memberRoutes from "./routes/memberRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
+import trainerWorkspaceRoutes from "./routes/trainerWorkspaceRoutes.js";
+import { ACTIVITIES } from "./config/activities.js";
 
 dotenv.config();
 
@@ -60,6 +64,10 @@ app.use("/api/trainers", trainerRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/coach", coachRoutes);
 app.use("/api/attendance", attendanceRoutes);
+app.use("/api/me", memberRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/trainer", trainerWorkspaceRoutes);
+app.get("/api/activities", (req, res) => res.json(ACTIVITIES));
 // Keep parser/upload failures JSON-shaped for the fetch client.
 app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);

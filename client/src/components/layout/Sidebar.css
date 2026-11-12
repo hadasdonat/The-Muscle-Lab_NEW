@@ -1,6 +1,10 @@
 .sidebar {
+  position: sticky;
+  top: 0;
+  flex: none;
   width: 260px;
   height: 100vh;
+  overflow-y: auto;
   background: #111111;
   border-right: 1px solid #27272a;
   display: flex;
@@ -76,6 +80,7 @@
 
 @media (max-width: 900px) {
     .sidebar {
+        position: static;
         width: 100%;
         height: auto;
         flex-direction: row;

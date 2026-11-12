@@ -10,15 +10,18 @@ import {
     deleteClass,
     getClassParticipants,
     getClassDateCounts,
-    getClassesByDate
+    getClassesByDate,
+    joinWaitlist,
+    leaveWaitlist
 } from "../services/classService.js";
+import { rateClass } from "../services/memberService.js";
 
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 
 // member endpoints
 export async function getAllClassesController(req, res) {
     try {
-        const classes = await getAllClasses(req.user.id);
+        const classes = await getAllClasses(req.user.id, { when: req.query.when });
         res.status(200).json(classes);
     } catch (error) {
         res.status(500).json({ message: "Failed to load classes." });
@@ -77,7 +80,7 @@ export async function cancelClassRegistrationController(req, res) {
         await cancelClassRegistration(req.params.id, req.user.id);
         res.json({ message: "Registration cancelled." });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(error.status || 500).json({ message: error.status ? error.message : "Cancellation failed." });
     }
 }
 
@@ -133,5 +136,31 @@ export async function getClassParticipantsController(req, res) {
         res.status(200).json(participants);
     } catch (error) {
         res.status(500).json({ message: error.message });
+    }
+}
+
+export async function joinWaitlistController(req, res) {
+    try {
+        const { position } = await joinWaitlist(req.params.id, req.user.id);
+        res.status(201).json({ message: `You're number ${position} on the waitlist.`, position });
+    } catch (error) {
+        res.status(error.status || 500).json({ message: error.status ? error.message : "Could not join the waitlist." });
+    }
+}
+
+export async function leaveWaitlistController(req, res) {
+    try {
+        await leaveWaitlist(req.params.id, req.user.id);
+        res.json({ message: "You left the waitlist." });
+    } catch (error) {
+        res.status(error.status || 500).json({ message: error.status ? error.message : "Could not leave the waitlist." });
+    }
+}
+
+export async function rateClassController(req, res) {
+    try {
+        res.json(await rateClass(req.user.id, req.params.id, req.body || {}));
+    } catch (error) {
+        res.status(error.status || 500).json({ message: error.status ? error.message : "Could not save your rating." });
     }
 }

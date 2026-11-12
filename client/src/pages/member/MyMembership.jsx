@@ -4,6 +4,7 @@ import {
 } from "react";
 
 import toast from "react-hot-toast";
+import { useConfirm } from "../../components/ui/ConfirmDialog";
 
 import Button from "../../components/ui/Button";
 
@@ -33,6 +34,7 @@ import {
 
 function Membership() {
 
+    const confirm = useConfirm();
     const [plans, setPlans] = useState([]);
 
     const [currentMembership, setCurrentMembership] =
@@ -126,9 +128,12 @@ function Membership() {
 
     async function handleCancel() {
 
-        const confirmed = window.confirm(
-            "Are you sure you want to cancel your membership?"
-        );
+        const confirmed = await confirm({
+            title: "Cancel your membership?",
+            message: "Your plan ends today and you'll lose access to booking classes. You can choose a new plan any time.",
+            confirmLabel: "Cancel membership",
+            danger: true
+        });
 
         if (!confirmed) {
             return;
