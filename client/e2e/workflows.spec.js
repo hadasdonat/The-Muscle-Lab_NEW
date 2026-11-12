@@ -52,6 +52,7 @@ test("Member registration, login, memberships, classes, calendar, profile, and l
     await expect(page).toHaveURL(/\/member\/dashboard$/);
     await expect(page.locator(".topbar")).toContainText("Portfolio Member");
     await expect(page.locator(".ai-summary")).toContainText("Portfolio");
+    await expect(page.locator(".ai-chip")).toBeVisible();
     await page.getByRole("link", { name: "Membership", exact: true }).click();
     await page.getByRole("button", { name: "Choose Plan", exact: true }).first().click();
     await expect(page.getByRole("button", { name: "Active Plan", exact: true })).toBeVisible();
@@ -90,7 +91,8 @@ test("Admin dashboard, role navigation, user/plan lists, and trainer/class forms
     page.on("dialog", dialog => dialog.accept());
     await login(page, process.env.E2E_ADMIN_EMAIL, process.env.E2E_ADMIN_PASSWORD);
     await expect(page).toHaveURL(/\/admin\/dashboard$/);
-    await expect(page.getByRole("heading", { name: "Admin intelligence dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Admin dashboard", exact: true })).toBeVisible();
+    await expect(page.getByText("Active membership rate")).toBeVisible();
     await capture(page, "admin-panel");
     await page.getByRole("link", { name: "Users", exact: true }).click();
     await expect(page.locator(".users-management-card").first()).toBeVisible();
@@ -132,6 +134,8 @@ test("Admin dashboard, role navigation, user/plan lists, and trainer/class forms
     await page.getByRole("link", { name: "Trainers", exact: true }).click();
     await trainerCard.getByRole("button", { name: "Delete", exact: true }).click();
     await expect(trainerCard).toHaveCount(0);
+    await page.getByRole("link", { name: "Attendance", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Who came to class", exact: true })).toBeVisible();
     await page.goto("/member/dashboard", { waitUntil: "domcontentloaded" }); await expect(page).toHaveURL(/\/admin\/dashboard$/);
     await page.getByRole("button", { name: "Logout" }).click(); await expect(page).toHaveURL(/\/login$/);
     expect(errors).toEqual([]);

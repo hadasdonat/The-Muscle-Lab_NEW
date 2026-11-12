@@ -154,7 +154,12 @@ describe("HTTP integration against an explicitly isolated test database", { skip
         assert.equal((await request("GET", "/users", undefined, adminToken)).status, 200);
         assert.equal((await request("GET", `/users/${memberId}`, undefined, adminToken)).data.id, memberId);
         const overview = await request("GET", "/dashboard/admin-overview", undefined, adminToken);
-        assert.equal(overview.status, 200); assert.ok(overview.data.classCount >= 5);
+        assert.equal(overview.status, 200);
+        assert.ok(overview.data.memberCount >= 1);
+        assert.equal(typeof overview.data.memberGrowth.thisMonth, "number");
+        assert.ok(overview.data.memberGrowth.thisMonth >= 1, "the member registered by this suite counts as new this month");
+        assert.ok(Array.isArray(overview.data.nextClasses) && Array.isArray(overview.data.recentRegistrations));
+        assert.ok(!("renewalRate" in overview.data), "the misleading renewal metric was removed");
     });
     test("Admin membership plan CRUD", async () => {
         const plan = { name: `Audit ${suffix}`, duration_months: 1, price: 50, description: "Synthetic test plan" };
@@ -182,5 +187,59 @@ describe("HTTP integration against an explicitly isolated test database", { skip
         assert.equal((await request("PUT", `/classes/admin/${id}`, { ...cls, capacity: 3 }, adminToken)).status, 200);
         assert.equal((await request("GET", `/classes/admin/${id}/participants`, undefined, adminToken)).status, 200);
         assert.equal((await request("DELETE", `/classes/admin/${id}`, undefined, adminToken)).status, 200);
+    });
+    test("coach returns a rule-based suggestion for members and is closed to other roles", async () => {
+        const insight = await request("GET", "/coach/insight", undefined, memberToken);
+        assert.equal(insight.status, 200);
+        assert.ok(["rules", "llm"].includes(insight.data.source));
+        assert.equal(typeof insight.data.summary, "string");
+        if (insight.data.suggestion) assert.ok(insight.data.suggestion.classId);
+        assert.equal((await request("GET", "/coach/insight", undefined, adminToken)).status, 403);
+        assert.equal((await request("GET", "/coach/insight")).status, 401);
+    });
+    test("trainers record attendance only for their own classes that have started", async () => {
+        const trainerAccount = credentials("trainer");
+        assert.equal((await request("POST", "/auth/register", trainerAccount)).status, 201);
+        await pool.execute("UPDATE Users SET role_id = (SELECT id FROM Roles WHERE name = 'Trainer') WHERE email = ?", [trainerAccount.email]);
+        const [[trainerUser]] = await pool.execute("SELECT id FROM Users WHERE email = ?", [trainerAccount.email]);
+        await pool.execute("INSERT INTO Trainers (user_id, specialization) VALUES (?, 'Mobility')", [trainerUser.id]);
+        const [[ownTrainer]] = await pool.execute("SELECT id FROM Trainers WHERE user_id = ?", [trainerUser.id]);
+        const trainerToken = (await request("POST", "/auth/login", { email: trainerAccount.email, password })).data.token;
+
+        await pool.execute(
+            "INSERT INTO Classes (trainer_id, title, class_date, start_time, end_time, room, capacity) VALUES (?, ?, CURRENT_DATE - INTERVAL 1 DAY, '10:00:00', '11:00:00', 'Studio A', 10), (?, ?, CURRENT_DATE + INTERVAL 3 DAY, '10:00:00', '11:00:00', 'Studio A', 10)",
+            [ownTrainer.id, `Past-${suffix}`, ownTrainer.id, `Future-${suffix}`]
+        );
+        const [[pastClass]] = await pool.execute("SELECT id FROM Classes WHERE title = ?", [`Past-${suffix}`]);
+        const [[futureClass]] = await pool.execute("SELECT id FROM Classes WHERE title = ?", [`Future-${suffix}`]);
+        await pool.execute("INSERT INTO ClassRegistrations (class_id, user_id) VALUES (?, ?), (?, ?)", [pastClass.id, memberId, futureClass.id, memberId]);
+
+        const list = await request("GET", "/attendance/classes", undefined, trainerToken);
+        assert.equal(list.status, 200);
+        assert.ok(list.data.classes.length >= 1 && list.data.classes.every(c => [`Past-${suffix}`, `Future-${suffix}`].includes(c.title)), "trainers only see their own classes");
+        assert.equal((await request("GET", `/attendance/classes/${classId}`, undefined, trainerToken)).status, 404);
+        assert.equal((await request("GET", "/attendance/classes", undefined, memberToken)).status, 403);
+        assert.equal((await request("GET", "/attendance/classes?from=bad", undefined, trainerToken)).status, 400);
+
+        const roster = await request("GET", `/attendance/classes/${pastClass.id}`, undefined, trainerToken);
+        assert.equal(roster.status, 200);
+        assert.equal(roster.data.roster.length, 1);
+        assert.equal(roster.data.roster[0].attended, null);
+        const registrationId = roster.data.roster[0].registration_id;
+
+        assert.equal((await request("PUT", `/attendance/classes/${pastClass.id}`, { records: [{ registrationId: "missing", attended: true }] }, trainerToken)).status, 400);
+        const futureRoster = await request("GET", `/attendance/classes/${futureClass.id}`, undefined, trainerToken);
+        assert.equal((await request("PUT", `/attendance/classes/${futureClass.id}`, { records: [{ registrationId: futureRoster.data.roster[0].registration_id, attended: true }] }, trainerToken)).status, 409);
+
+        const saved = await request("PUT", `/attendance/classes/${pastClass.id}`, { records: [{ registrationId, attended: true }] }, trainerToken);
+        assert.equal(saved.status, 200);
+        assert.equal(saved.data.roster[0].attended, true);
+        const updated = await request("PUT", `/attendance/classes/${pastClass.id}`, { records: [{ registrationId, attended: false }] }, adminToken);
+        assert.equal(updated.data.roster[0].attended, false);
+        const [rows] = await pool.execute("SELECT COUNT(*) AS n FROM Attendance WHERE class_registration_id = ?", [registrationId]);
+        assert.equal(Number(rows[0].n), 1, "saving twice updates the same record");
+
+        const overview = await request("GET", "/dashboard/admin-overview", undefined, adminToken);
+        assert.ok(overview.data.attendance.recorded >= 1);
     });
 });

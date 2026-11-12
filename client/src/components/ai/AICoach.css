@@ -121,6 +121,117 @@
     line-height: 1.7;
 }
 
+ul.ai-reasons {
+    list-style: none;
+    margin-bottom: 0;
+    padding-left: 0;
+}
+
+.ai-coach-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ai-icon-button,
+.ai-secondary-button,
+.ai-book-button {
+    border: 1px solid #3a3a3a;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text, #f5f5f5);
+    font: inherit;
+    cursor: pointer;
+}
+
+.ai-icon-button {
+    display: inline-flex;
+    padding: 6px;
+}
+
+.ai-icon-button:disabled,
+.ai-book-button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.ai-icon-button:focus-visible,
+.ai-secondary-button:focus-visible,
+.ai-book-button:focus-visible {
+    outline: 2px solid var(--primary, #ffd400);
+    outline-offset: 2px;
+}
+
+.ai-suggestion-title {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--primary, #ffd400);
+    font-size: 16px;
+}
+
+.ai-suggestion-meta {
+    display: grid;
+    gap: 4px;
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+    color: var(--text-secondary, #a1a1aa);
+    font-size: 13px;
+}
+
+.ai-suggestion-meta li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ai-suggestion-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.ai-book-button {
+    padding: 8px 16px;
+    border-color: var(--primary, #ffd400);
+    background: var(--primary, #ffd400);
+    color: #111;
+    font-weight: 700;
+}
+
+.ai-secondary-button {
+    padding: 6px 12px;
+}
+
+.ai-tip,
+.ai-message {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 16px 0 0;
+    color: var(--text-secondary, #a1a1aa);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.ai-tip svg {
+    flex-shrink: 0;
+    margin-top: 3px;
+    color: var(--primary, #ffd400);
+}
+
+.ai-message {
+    color: var(--text, #f5f5f5);
+}
+
+.ai-error p {
+    margin: 0 0 12px;
+    color: #fca5a5;
+    font-size: 14px;
+}
+
 @media (max-width: 700px) {
     .ai-coach-card {
         padding: 20px;

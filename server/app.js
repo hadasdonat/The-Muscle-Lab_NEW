@@ -11,11 +11,16 @@ import userMembershipRoutes from "./routes/userMembershipRoutes.js";
 import classRoutes from "./routes/classRoutes.js";
 import trainerRoutes from "./routes/trainerRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
+import coachRoutes from "./routes/coachRoutes.js";
+import attendanceRoutes from "./routes/attendanceRoutes.js";
 
 dotenv.config();
 
 const app = express();
 app.disable("x-powered-by");
+// Behind a hosting proxy (Render, Railway, Fly) every request arrives from the proxy's IP,
+// so per-IP limits would be shared by all users. TRUST_PROXY is the number of proxy hops.
+if (/^\d+$/.test(process.env.TRUST_PROXY || "")) app.set("trust proxy", Number(process.env.TRUST_PROXY));
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -40,6 +45,7 @@ app.use(
     "/api/membership-plans",
     membershipPlanRoutes
 );
+app.get("/api/health", (req, res) => res.status(200).json({ status: "ok" }));
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use(
@@ -52,6 +58,8 @@ app.use(
 );
 app.use("/api/trainers", trainerRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/coach", coachRoutes);
+app.use("/api/attendance", attendanceRoutes);
 // Keep parser/upload failures JSON-shaped for the fetch client.
 app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);

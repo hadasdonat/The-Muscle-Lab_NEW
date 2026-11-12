@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { saveLogin, getCurrentUser, getToken, logout } from "../src/services/authService.js";
 import apiRequest from "../src/services/api.js";
 import { profileImageUrl } from "../src/services/config.js";
-import { getCoachInsight } from "../src/services/aiService.js";
+import { formatClassTime, getCoachInsight } from "../src/services/aiService.js";
 
 function storage() {
     const map = new Map();
@@ -49,9 +49,19 @@ test("profile images resolve against the API and do not send names to external a
     assert.equal(profileImageUrl("https://example.invalid/avatar.png"), "https://example.invalid/avatar.png");
     assert.equal(profileImageUrl("javascript:invalid"), "/avatar.svg");
 });
-test("coach produces local rule-based suggestions without a remote service", async () => {
-    globalThis.fetch = () => assert.fail("local mode must not call a remote model");
-    const result = await getCoachInsight({ user: { first_name: "Demo" }, membership: null, myClasses: [], availableClasses: [{ title: "Yoga" }] });
-    assert.equal(result.suggestion.title, "Yoga");
+test("coach asks the server for a suggestion and never calls a model from the browser", async () => {
+    const calls = [];
+    globalThis.fetch = async (url, init) => {
+        calls.push({ url, init });
+        return { ok: true, status: 200, json: async () => ({ source: "rules", summary: "Hi Demo", suggestion: null, reasons: [] }) };
+    };
+    const result = await getCoachInsight({ refresh: true });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "http://localhost:3000/api/coach/insight?refresh=1");
+    assert.equal(calls[0].init.body, undefined);
     assert.match(result.summary, /Demo/);
+});
+test("suggested class times are formatted from calendar dates", () => {
+    assert.equal(formatClassTime({ date: "2026-11-17", startTime: "18:00", endTime: "19:00" }), "Tue 17 Nov · 18:00–19:00");
+    assert.equal(formatClassTime(null), "");
 });

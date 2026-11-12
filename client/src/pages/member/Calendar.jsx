@@ -10,8 +10,15 @@ function toDateKey(date) {
     return `${year}-${month}-${day}`;
 }
 
-function formatDayLabel(date) {
-    return new Date(date).toLocaleDateString("en-GB", {
+// "YYYY-MM-DD" must be read as a local calendar date. new Date("2026-11-12") is UTC midnight,
+// which shows the previous day for anyone west of UTC.
+function fromDateKey(key) {
+    const [year, month, day] = key.split("-").map(Number);
+    return new Date(year, month - 1, day);
+}
+
+function formatDayLabel(dateKey) {
+    return fromDateKey(dateKey).toLocaleDateString("en-GB", {
         weekday: "short",
         day: "numeric",
         month: "short"
@@ -24,9 +31,17 @@ function CalendarPage() {
     const [selectedDate, setSelectedDate] = useState(toDateKey(new Date()));
     const [selectedClasses, setSelectedClasses] = useState([]);
     const [selectedLoading, setSelectedLoading] = useState(false);
+    const [monthError, setMonthError] = useState("");
+    const [dayError, setDayError] = useState("");
+    const [reloadKey, setReloadKey] = useState(0);
 
+    // Each effect ignores responses that arrive after the user has moved on, so a slow
+    // request for an earlier month or day can't overwrite the one on screen.
     useEffect(() => {
+        let ignore = false;
+
         async function loadMonthCounts() {
+            setMonthError("");
             try {
                 const year = viewDate.getFullYear();
                 const month = viewDate.getMonth();
@@ -34,6 +49,7 @@ function CalendarPage() {
                 const end = toDateKey(new Date(year, month + 1, 0));
 
                 const data = await getClassDateCounts(start, end);
+                if (ignore) return;
 
                 const map = {};
                 data.forEach((row) => {
@@ -42,30 +58,40 @@ function CalendarPage() {
 
                 setDateCounts(map);
             } catch (error) {
+                if (ignore) return;
                 console.error(error);
+                setDateCounts({});
+                setMonthError("Class counts for this month could not be loaded.");
             }
         }
 
         loadMonthCounts();
-    }, [viewDate]);
+        return () => { ignore = true; };
+    }, [viewDate, reloadKey]);
 
     useEffect(() => {
+        let ignore = false;
+
         async function loadSelectedDay() {
             setSelectedLoading(true);
+            setDayError("");
 
             try {
                 const data = await getClassesByDate(selectedDate);
-                setSelectedClasses(data);
+                if (!ignore) setSelectedClasses(data);
             } catch (error) {
+                if (ignore) return;
                 console.error(error);
                 setSelectedClasses([]);
+                setDayError("Classes for this day could not be loaded.");
             } finally {
-                setSelectedLoading(false);
+                if (!ignore) setSelectedLoading(false);
             }
         }
 
         loadSelectedDay();
-    }, [selectedDate]);
+        return () => { ignore = true; };
+    }, [selectedDate, reloadKey]);
 
     const daysInMonth = useMemo(() => {
         const year = viewDate.getFullYear();
@@ -86,7 +112,11 @@ function CalendarPage() {
     }, [viewDate]);
 
     function changeMonth(delta) {
-        setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + delta, 1));
+        setViewDate(current => new Date(current.getFullYear(), current.getMonth() + delta, 1));
+    }
+
+    function retry() {
+        setReloadKey(key => key + 1);
     }
 
     return (
@@ -97,7 +127,7 @@ function CalendarPage() {
                     <h1>Class schedule planner</h1>
                 </div>
                 <div className="calendar-nav">
-                    <button type="button" onClick={() => changeMonth(-1)}>
+                    <button type="button" onClick={() => changeMonth(-1)} aria-label="Previous month">
                         <ArrowLeft size={16} />
                     </button>
                     <strong>
@@ -106,11 +136,18 @@ function CalendarPage() {
                             year: "numeric"
                         })}
                     </strong>
-                    <button type="button" onClick={() => changeMonth(1)}>
+                    <button type="button" onClick={() => changeMonth(1)} aria-label="Next month">
                         <ArrowRight size={16} />
                     </button>
                 </div>
             </div>
+
+            {monthError && (
+                <div className="calendar-error" role="alert">
+                    <span>{monthError}</span>
+                    <button type="button" onClick={retry}>Try again</button>
+                </div>
+            )}
 
             <div className="calendar-grid-wrapper">
                 <div className="calendar-grid">
@@ -133,6 +170,8 @@ function CalendarPage() {
                                 type="button"
                                 className={`calendar-day ${isSelected ? "selected" : ""}`}
                                 onClick={() => setSelectedDate(key)}
+                                aria-pressed={isSelected}
+                                aria-label={`${formatDayLabel(key)}, ${count} class${count === 1 ? "" : "es"}`}
                             >
                                 <span>{day.getDate()}</span>
                                 {count > 0 && <small>{count} class{count > 1 ? "es" : ""}</small>}
@@ -149,12 +188,17 @@ function CalendarPage() {
 
                     {selectedLoading ? (
                         <p className="calendar-empty">Loading...</p>
+                    ) : dayError ? (
+                        <div className="calendar-error" role="alert">
+                            <span>{dayError}</span>
+                            <button type="button" onClick={retry}>Try again</button>
+                        </div>
                     ) : selectedClasses.length > 0 ? (
                         selectedClasses.map((gymClass) => (
                             <div key={gymClass.id} className="calendar-class-card">
                                 <h3>{gymClass.title}</h3>
                                 <p>{gymClass.trainer_name}</p>
-                                <span>{gymClass.start_time} - {gymClass.end_time}</span>
+                                <span>{String(gymClass.start_time).slice(0, 5)}–{String(gymClass.end_time).slice(0, 5)}</span>
                                 <small>{gymClass.room}</small>
                             </div>
                         ))

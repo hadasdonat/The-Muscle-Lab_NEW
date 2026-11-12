@@ -7,6 +7,7 @@ import {
     FiLogOut,
     FiCalendar,
     FiBarChart2,
+    FiCheckSquare,
 } from "react-icons/fi";
 
 import { logout, getCurrentUser } from "../../services/authService";
@@ -73,7 +74,16 @@ function Sidebar() {
                             <FiUsers />
                             Classes
                         </NavLink>
+                        <NavLink to="/admin/attendance" className={linkClass}>
+                            <FiCheckSquare />
+                            Attendance
+                        </NavLink>
                     </>
+                ) : user?.role === "Trainer" ? (
+                    <NavLink to="/trainer/attendance" className={linkClass}>
+                        <FiCheckSquare />
+                        Attendance
+                    </NavLink>
                 ) : (
                     <>
                         <NavLink to="/member/dashboard" className={linkClass}>

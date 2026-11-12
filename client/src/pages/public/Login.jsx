@@ -58,6 +58,10 @@ function Login() {
 
                 navigate("/admin/dashboard");
 
+            } else if (user.role === "Trainer") {
+
+                navigate("/trainer/attendance");
+
             } else {
 
                 navigate("/member/dashboard");

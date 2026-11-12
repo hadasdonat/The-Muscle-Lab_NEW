@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     CalendarDays,
     CreditCard,
@@ -7,11 +7,10 @@ import {
     ArrowRight
 } from "lucide-react";
 
-import { useUser } from "../../context/UserContext";
 import Button from "../../components/ui/Button";
 import AICoach from "../../components/ai/AICoach";
 import "./Dashboard.css";
-import apiRequest, {getMyClasses,cancelClassRegistration, getClasses} from "../../services/api";
+import apiRequest, { getMyClasses, cancelClassRegistration } from "../../services/api";
 
 function formatDate(date) {
     return new Date(date).toLocaleDateString("en-GB", {
@@ -31,11 +30,9 @@ function formatTime(time) {
 
 function Dashboard() {
 
-    const { user } = useUser();
 
     const [membership, setMembership] = useState(null);
     const [myClasses, setMyClasses] = useState([]);
-    const [availableClasses, setAvailableClasses] = useState([]);
     const [loading, setLoading] = useState(true);
     
     async function handleCancel(classId) {
@@ -58,42 +55,24 @@ function Dashboard() {
 
 }
     // load dashboard data
+    const loadDashboard = useCallback(async () => {
+        try {
+            const [membershipData, classesData] = await Promise.all([
+                apiRequest("/user-memberships/me"),
+                getMyClasses()
+            ]);
+            setMembership(membershipData);
+            setMyClasses(classesData);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
-
-        async function loadDashboard() {
-
-            try {
-
-                const membershipData =
-                    await apiRequest("/user-memberships/me");
-
-                const classesData =
-                    await getMyClasses();
-                const allClassesData =
-                    await getClasses();
-
-                setMembership(membershipData);
-                setMyClasses(classesData);
-                setAvailableClasses(allClassesData);
-
-            }
-            catch (err) {
-
-                console.error(err);
-
-            }
-            finally {
-
-                setLoading(false);
-
-            }
-
-        }
-
         loadDashboard();
-
-    }, []);
+    }, [loadDashboard]);
 
     if (loading) {
 
@@ -363,12 +342,7 @@ function Dashboard() {
 
                     </div>
 
-                    <AICoach
-                        user={user}
-                        membership={membership}
-                        myClasses={myClasses}
-                        availableClasses={availableClasses}
-                    />
+                    <AICoach onRegistered={loadDashboard} />
 
                 </div>
 

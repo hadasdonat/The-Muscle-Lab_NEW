@@ -28,6 +28,9 @@ import TrainersManagement from "../pages/admin/TrainersManagement";
 import ClassesManagement from "../pages/admin/ClassesManagement";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 
+// Staff Pages
+import AttendancePage from "../pages/staff/Attendance";
+
 //classes page
 import Classes from "../pages/Classes/Classes";
 
@@ -115,6 +118,24 @@ function AppRoutes() {
                 <Route
                     path="/admin/classes"
                     element={<ClassesManagement />}
+                />
+
+                <Route
+                    path="/admin/attendance"
+                    element={<AttendancePage />}
+                />
+            </Route>
+
+            <Route
+                element={
+                    <ProtectedRoute allowedRoles={["Trainer"]}>
+                        <DashboardLayout />
+                    </ProtectedRoute>
+                }
+            >
+                <Route
+                    path="/trainer/attendance"
+                    element={<AttendancePage />}
                 />
             </Route>
 

@@ -154,6 +154,8 @@ CREATE TABLE Attendance (
 
     attended BOOLEAN DEFAULT FALSE,
 
+    UNIQUE (class_registration_id),
+
     FOREIGN KEY (class_registration_id)
         REFERENCES ClassRegistrations(id)
 );
